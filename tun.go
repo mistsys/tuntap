@@ -40,7 +40,7 @@ type Packet struct {
 
 type Interface struct {
 	name string
-	file     *os.File
+	file *os.File
 }
 
 // Disconnect from the tun/tap interface.
@@ -59,7 +59,7 @@ func (t *Interface) Name() string {
 
 // Read a single packet from the kernel.
 func (t *Interface) ReadPacket() (*Packet, error) {
-	buf := make([]byte, 10000)
+	buf := make([]byte, 1600)
 
 	n, err := t.file.Read(buf)
 	if err != nil {
