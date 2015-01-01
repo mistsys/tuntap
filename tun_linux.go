@@ -2,8 +2,9 @@ package tuntap
 
 import (
 	"os"
-	"unsafe"
+	"strings"
 	"syscall"
+	"unsafe"
 )
 
 func createInterface(file *os.File, ifPattern string, kind DevKind) (string, error) {
@@ -22,5 +23,5 @@ func createInterface(file *os.File, ifPattern string, kind DevKind) (string, err
 	if err != 0 {
 		return "", err
 	}
-	return string(req.Name[:]), nil
+	return strings.TrimRight(string(req.Name[:]), "\x00"), nil
 }
