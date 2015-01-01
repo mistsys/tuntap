@@ -10,6 +10,7 @@ package tuntap
 import (
 	"encoding/binary"
 	"io"
+	"net"
 	"os"
 	"unsafe"
 )
@@ -25,6 +26,12 @@ const (
 	// would be visible on an Ethernet link, including broadcast and
 	// multicast traffic.
 	DevTap
+)
+
+const (
+	// various ethernet protocols, using the same names as linux does
+	ETH_P_IP   int = 0x0800
+	ETH_P_IPV6 int = 0x86dd
 )
 
 type Packet struct {
@@ -117,4 +124,29 @@ func Open(ifPattern string, kind DevKind) (*Interface, error) {
 	}
 
 	return &Interface{ifName, file}, nil
+}
+
+// query parts of Packets
+// NOTE: think whether this wouldn't be better done with a interface and two implemenations, one for each protocol
+
+// return the destination IP
+func (p *Packet) DIP() net.IP {
+	switch p.Protocol {
+	case ETH_P_IP:
+		return net.IP(p.Packet[16:20])
+	case ETH_P_IPV6:
+		return net.IP(p.Packet[24:40])
+	}
+	return net.IP{}
+}
+
+// return the source IP
+func (p *Packet) SIP() net.IP {
+	switch p.Protocol {
+	case ETH_P_IP:
+		return net.IP(p.Packet[12:16])
+	case ETH_P_IPV6:
+		return net.IP(p.Packet[8:24])
+	}
+	return net.IP{}
 }
