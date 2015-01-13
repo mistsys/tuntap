@@ -42,7 +42,7 @@ type Packet struct {
 	Truncated bool
 	// The raw bytes of the Ethernet payload (for DevTun) or the full
 	// Ethernet frame (for DevTap).
-	Packet []byte
+	Body []byte
 }
 
 type Interface struct {
@@ -73,7 +73,7 @@ func (t *Interface) ReadPacket() (*Packet, error) {
 		return nil, err
 	}
 
-	pkt := &Packet{Packet: buf[4:n]}
+	pkt := &Packet{Body: buf[4:n]}
 	pkt.Protocol = int(binary.BigEndian.Uint16(buf[2:4]))
 	flags := *(*uint16)(unsafe.Pointer(&buf[0]))
 	if flags&flagTruncated != 0 {
@@ -85,9 +85,9 @@ func (t *Interface) ReadPacket() (*Packet, error) {
 // Send a single packet to the kernel.
 func (t *Interface) WritePacket(pkt *Packet) error {
 	// If only we had writev(), I could do zero-copy here...
-	buf := make([]byte, len(pkt.Packet)+4)
+	buf := make([]byte, len(pkt.Body)+4)
 	binary.BigEndian.PutUint16(buf[2:4], uint16(pkt.Protocol))
-	copy(buf[4:], pkt.Packet)
+	copy(buf[4:], pkt.Body)
 	n, err := t.file.Write(buf)
 	if err != nil {
 		return err
@@ -133,9 +133,9 @@ func Open(ifPattern string, kind DevKind) (*Interface, error) {
 func (p *Packet) DIP() net.IP {
 	switch p.Protocol {
 	case ETH_P_IP:
-		return net.IP(p.Packet[16:20])
+		return net.IP(p.Body[16:20])
 	case ETH_P_IPV6:
-		return net.IP(p.Packet[24:40])
+		return net.IP(p.Body[24:40])
 	}
 	return net.IP{}
 }
@@ -144,9 +144,9 @@ func (p *Packet) DIP() net.IP {
 func (p *Packet) SIP() net.IP {
 	switch p.Protocol {
 	case ETH_P_IP:
-		return net.IP(p.Packet[12:16])
+		return net.IP(p.Body[12:16])
 	case ETH_P_IPV6:
-		return net.IP(p.Packet[8:24])
+		return net.IP(p.Body[8:24])
 	}
 	return net.IP{}
 }
