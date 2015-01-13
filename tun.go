@@ -169,7 +169,7 @@ func (p *Packet) IPProto() (int, int, bool) {
 	switch p.Protocol {
 	case ETH_P_IP:
 		fragment = (p.Body[6]&0x1f)|p.Body[7] != 0
-		return int(p.Body[9]), int(p.Body[0]&0xf) << 4, fragment
+		return int(p.Body[9]), int(p.Body[0]&0xf) << 2, fragment
 	case ETH_P_IPV6:
 		// finding the IP protocol in the case of IPv6 is slightly messy. we have to scan down the IPv6 header chain and find the last one
 		next := p.Body[6]
