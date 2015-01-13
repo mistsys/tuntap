@@ -150,3 +150,14 @@ func (p *Packet) SIP() net.IP {
 	}
 	return net.IP{}
 }
+
+// return the 6-bit DSCP field
+func (p *Packet) DSCP() int {
+	switch p.Protocol {
+	case ETH_P_IP:
+		return int(p.Body[1] >> 2)
+	case ETH_P_IPV6:
+		return int((p.Body[0]&0x0f)<<2 | (p.Body[1]&0xf0)>>6)
+	}
+	return 0
+}
