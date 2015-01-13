@@ -202,3 +202,22 @@ func (p *Packet) IPProto() (int, int, bool) {
 	}
 	return 0, 0, false
 }
+
+// returns ipproto, icmp type, icmp code, if this is an ICMP packet, or 0,_,_ if it isn't
+func (p *Packet) ICMPType() (int, int, int) {
+	proto, at, frag := p.IPProto()
+	if !frag {
+		switch proto {
+		case 1: // IPv4 ICMP
+			if at+4 <= len(p.Body) {
+				return 1, int(p.Body[at]), int(p.Body[at+1])
+			}
+		case 58: // ICMP6
+			// the header is identical in layout, but the values of the fields are very different
+			if at+4 <= len(p.Body) {
+				return 58, int(p.Body[at]), int(p.Body[at+1])
+			}
+		}
+	}
+	return 0, 0, 0
+}
