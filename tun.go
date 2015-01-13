@@ -161,3 +161,44 @@ func (p *Packet) DSCP() int {
 	}
 	return 0
 }
+
+// return the IP protocol, the offset to the IP datagram payload, and true if the payload is from a non-first fragment
+// returns 0,0,false if parsing fails or the IPv6 header 59 (no-next-header) is found
+func (p *Packet) IPProto() (int, int, bool) {
+	fragment := false
+	switch p.Protocol {
+	case ETH_P_IP:
+		fragment = (p.Body[6]&0x1f)|p.Body[7] != 0
+		return int(p.Body[9]), int(p.Body[0]&0xf) << 4, fragment
+	case ETH_P_IPV6:
+		// finding the IP protocol in the case of IPv6 is slightly messy. we have to scan down the IPv6 header chain and find the last one
+		next := p.Body[6]
+		at := 40
+		for true {
+			if at+4 > len(p.Body) {
+				// off the end of the body. there must have been a garbage value somewhere
+				return 0, 0, false
+			}
+			switch next {
+			case 0, // hop-by-hop
+				43, // routing extension
+				60: // destination options extension
+				// skip over this header and continue to the next one
+				next = p.Body[at]
+				at += 8 + int(p.Body[at+1])*8
+			case 44: // fragment extension
+				next = p.Body[at]
+				at += 8
+				fragment = p.Body[at+2]|(p.Body[at+3]&0xf8) != 0
+			case 51: // AH header (it is likely that the next proto is ESP, but just in case it isn't we might as well decode it)
+				next = p.Body[at]
+				at += 8 + int(p.Body[at+1])*4 // note unlike most IPv6 headers the length of AH is in 4-byte units
+			case 59: // no next header
+				return 0, len(p.Body), fragment
+			default:
+				return int(next), at, fragment
+			}
+		}
+	}
+	return 0, 0, false
+}
