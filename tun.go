@@ -30,19 +30,19 @@ const (
 
 const (
 	// various ethernet protocols, using the same names as linux does
-	ETH_P_IP   int = 0x0800
-	ETH_P_IPV6 int = 0x86dd
+	ETH_P_IP   uint16 = 0x0800
+	ETH_P_IPV6 uint16 = 0x86dd
 )
 
 type Packet struct {
-	// The Ethernet type of the packet. Commonly seen values are
-	// 0x8000 for IPv4 and 0x86dd for IPv6.
-	Protocol int
-	// True if the packet was too large to be read completely.
-	Truncated bool
 	// The raw bytes of the Ethernet payload (for DevTun) or the full
 	// Ethernet frame (for DevTap).
 	Body []byte
+	// The Ethernet type of the packet. Commonly seen values are
+	// 0x8000 for IPv4 and 0x86dd for IPv6.
+	Protocol uint16
+	// True if the packet was too large to be read completely.
+	Truncated bool
 }
 
 type Interface struct {
@@ -74,7 +74,7 @@ func (t *Interface) ReadPacket() (*Packet, error) {
 	}
 
 	pkt := &Packet{Body: buf[4:n]}
-	pkt.Protocol = int(binary.BigEndian.Uint16(buf[2:4]))
+	pkt.Protocol = binary.BigEndian.Uint16(buf[2:4])
 	flags := *(*uint16)(unsafe.Pointer(&buf[0]))
 	if flags&flagTruncated != 0 {
 		pkt.Truncated = true
@@ -86,7 +86,7 @@ func (t *Interface) ReadPacket() (*Packet, error) {
 func (t *Interface) WritePacket(pkt *Packet) error {
 	// If only we had writev(), I could do zero-copy here...
 	buf := make([]byte, len(pkt.Body)+4)
-	binary.BigEndian.PutUint16(buf[2:4], uint16(pkt.Protocol))
+	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
 	copy(buf[4:], pkt.Body)
 	n, err := t.file.Write(buf)
 	if err != nil {
