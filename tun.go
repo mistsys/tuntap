@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"unsafe"
 )
 
@@ -82,13 +83,19 @@ func (t *Interface) ReadPacket() (Packet, error) {
 	return pkt, nil
 }
 
+// free 1600 byte buffers
+var buffers = sync.Pool{New: func() interface{} { return new([1600]byte) }}
+
 // Send a single packet to the kernel.
 func (t *Interface) WritePacket(pkt Packet) error {
 	// If only we had writev(), I could do zero-copy here...
-	buf := make([]byte, len(pkt.Body)+4)
+	// At least we will manage the buffer so we don't cause the GC extra work
+	buf := buffers.Get().(*[1600]byte)
+	defer buffers.Put(buf)
+
 	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
 	copy(buf[4:], pkt.Body)
-	n, err := t.file.Write(buf)
+	n, err := t.file.Write(buf[:4+len(pkt.Body)])
 	if err != nil {
 		return err
 	}
