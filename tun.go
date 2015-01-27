@@ -66,20 +66,16 @@ func (t *Interface) Name() string {
 }
 
 // Read a single packet from the kernel.
-func (t *Interface) ReadPacket() (Packet, error) {
-	buf := make([]byte, 1600)
-
-	n, err := t.file.Read(buf)
+func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
+	n, err := t.file.Read(buffer)
 	if err != nil {
 		return Packet{}, err
 	}
 
-	pkt := Packet{Body: buf[4:n]}
-	pkt.Protocol = binary.BigEndian.Uint16(buf[2:4])
-	flags := *(*uint16)(unsafe.Pointer(&buf[0]))
-	if flags&flagTruncated != 0 {
-		pkt.Truncated = true
-	}
+	pkt := Packet{Body: buffer[4:n]}
+	pkt.Protocol = binary.BigEndian.Uint16(buffer[2:4])
+	flags := *(*uint16)(unsafe.Pointer(&buffer[0]))
+	pkt.Truncated = (flags&flagTruncated != 0)
 	return pkt, nil
 }
 
