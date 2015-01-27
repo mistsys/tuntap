@@ -91,11 +91,12 @@ func (t *Interface) WritePacket(pkt Packet) error {
 
 	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
 	copy(buf[4:], pkt.Body)
-	n, err := t.file.Write(buf[:4+len(pkt.Body)])
+	n := 4 + len(pkt.Body)
+	a, err := t.file.Write(buf[:n])
 	if err != nil {
 		return err
 	}
-	if n != len(buf) {
+	if a != n {
 		return io.ErrShortWrite
 	}
 	return nil
