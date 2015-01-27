@@ -9,7 +9,7 @@ import (
 
 func createInterface(file *os.File, ifPattern string, kind DevKind) (string, error) {
 	var req ifReq
-	req.Flags = iffOneQueue
+	req.Flags = 0
 	copy(req.Name[:15], ifPattern)
 	switch kind {
 	case DevTun:
