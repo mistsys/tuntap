@@ -87,12 +87,12 @@ func (t *Interface) WritePacket(pkt Packet) error {
 	// If only we had writev(), I could do zero-copy here...
 	// At least we will manage the buffer so we don't cause the GC extra work
 	buf := buffers.Get().(*[1600]byte)
-	defer buffers.Put(buf)
 
 	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
 	copy(buf[4:], pkt.Body)
 	n := 4 + len(pkt.Body)
 	a, err := t.file.Write(buf[:n])
+	buffers.Put(buf)
 	if err != nil {
 		return err
 	}
