@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"code.google.com/p/tuntap"
+	"github.com/mistsys/tuntap"
 )
 
 func main() {
@@ -33,7 +33,8 @@ func main() {
 
 	fmt.Println("Listening on", tun.Name())
 	for {
-		pkt, err := tun.ReadPacket()
+		buf := make([]byte, 1536)
+		pkt, err := tun.ReadPacket(buf)
 		if err != nil {
 			fmt.Println("Read error:", err)
 		} else {
@@ -42,7 +43,7 @@ func main() {
 			} else {
 				fmt.Printf(" ")
 			}
-			fmt.Printf("%x %x\n", pkt.Protocol, pkt.Packet)
+			fmt.Printf("%x %x\n", pkt.Protocol, pkt.Body)
 		}
 	}
 }
