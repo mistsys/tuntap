@@ -168,12 +168,12 @@ func (p *Packet) DSCP() int {
 
 // return the IP protocol, the offset to the IP datagram payload, and true if the payload is from a non-first fragment
 // returns 0,0,false if parsing fails or the IPv6 header 59 (no-next-header) is found
-func (p *Packet) IPProto() (int, int, bool) {
+func (p *Packet) IPProto() (uint8, int, bool) {
 	fragment := false
 	switch p.Protocol {
 	case ETH_P_IP:
 		fragment = (p.Body[6]&0x1f)|p.Body[7] != 0
-		return int(p.Body[9]), int(p.Body[0]&0xf) << 2, fragment
+		return p.Body[9], int(p.Body[0]&0xf) << 2, fragment
 	case ETH_P_IPV6:
 		// finding the IP protocol in the case of IPv6 is slightly messy. we have to scan down the IPv6 header chain and find the last one
 		next := p.Body[6]
@@ -200,7 +200,7 @@ func (p *Packet) IPProto() (int, int, bool) {
 			case 59: // no next header
 				return 0, len(p.Body), fragment
 			default:
-				return int(next), at, fragment
+				return next, at, fragment
 			}
 		}
 	}
