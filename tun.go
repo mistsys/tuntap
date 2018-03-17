@@ -9,9 +9,11 @@ package tuntap
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"unsafe"
 )
@@ -224,4 +226,13 @@ func (p *Packet) ICMPType() (int, int, int) {
 		}
 	}
 	return 0, 0, 0
+}
+
+func (p *Packet) String() string {
+	s := fmt.Sprintf("%v -> %v", p.SIP(), p.DIP())
+	dscp := p.DSCP()
+	if dscp != 0 {
+		s += ", DSCP " + strconv.Itoa(dscp)
+	}
+	return s
 }
