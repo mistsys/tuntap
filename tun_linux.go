@@ -19,7 +19,12 @@ func createInterface(file *os.File, ifPattern string, kind DevKind) (string, err
 	default:
 		panic("Unknown interface type")
 	}
-	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, file.Fd(), uintptr(syscall.TUNSETIFF), uintptr(unsafe.Pointer(&req)))
+	fd := file.Fd()
+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TUNSETIFF), uintptr(unsafe.Pointer(&req)))
+
+	//  calling File.Fd() changes file to be blocking, so we change it back so it continues to play well with the go runtime
+	syscall.SetNonblock(int(fd), true)
+
 	if err != 0 {
 		return "", err
 	}
