@@ -118,18 +118,7 @@ func (t *Interface) WritePacket(pkt Packet) error {
 // Returns a TunTap object with channels to send/receive packets, or
 // nil and an error if connecting to the interface failed.
 func Open(ifPattern string, kind DevKind) (*Interface, error) {
-	file, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	ifName, err := createInterface(file, ifPattern, kind)
-	if err != nil {
-		file.Close()
-		return nil, err
-	}
-
-	return &Interface{ifName, file}, nil
+	return createInterface(ifPattern, kind)
 }
 
 // query parts of Packets
