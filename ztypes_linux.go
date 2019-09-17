@@ -5,9 +5,6 @@ package tuntap
 
 const (
 	flagTruncated = 0x1
-
-	iffTun = 0x1
-	iffTap = 0x2
 )
 
 type ifReq struct {

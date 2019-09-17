@@ -32,17 +32,16 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	}
 
 	var req ifReq
-	req.Flags = 0
 	copy(req.Name[:15], ifPattern)
 	switch kind {
 	case DevTun:
-		req.Flags |= iffTun
+		req.Flags = unix.IFF_TUN
 	case DevTap:
-		req.Flags |= iffTap
+		req.Flags = unix.IFF_TAP
 	default:
 		panic(fmt.Sprintf("tuntamp: Unknown tuntap interface type %d", int(kind)))
 	}
-	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), uintptr(syscall.TUNSETIFF), uintptr(unsafe.Pointer(&req)))
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), uintptr(unix.TUNSETIFF), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
 		unix.Close(fd)
 		return nil, errors.Wrapf(errno, "tuncap: Can't ioctl(TUNSETIFF) on %s", TUN)

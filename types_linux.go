@@ -14,9 +14,6 @@ import "C"
 
 const (
 	flagTruncated = C.TUN_PKT_STRIP
-
-	iffTun = C.IFF_TUN
-	iffTap = C.IFF_TAP
 )
 
 type ifReq struct {
