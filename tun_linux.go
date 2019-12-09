@@ -26,7 +26,7 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
 	const TUN = "/dev/net/tun"
 
-	fd, err := unix.Open(TUN, os.O_RDWR, 0)
+	fd, err := unix.Open(TUN, os.O_RDWR|syscall.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, errors.Wrapf(err, "tuntap: Can't open %s", TUN)
 	}
