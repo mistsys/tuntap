@@ -39,12 +39,12 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	case DevTap:
 		req.Flags = unix.IFF_TAP
 	default:
-		panic(fmt.Sprintf("tuntamp: Unknown tuntap interface type %d", int(kind)))
+		panic(fmt.Sprintf("tuntap: Unknown tuntap interface type %d", int(kind)))
 	}
 	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), uintptr(unix.TUNSETIFF), uintptr(unsafe.Pointer(&req)))
 	if errno != 0 {
 		unix.Close(fd)
-		return nil, errors.Wrapf(errno, "tuncap: Can't ioctl(TUNSETIFF) on %s", TUN)
+		return nil, errors.Wrapf(errno, "tuntap: Can't ioctl(TUNSETIFF) on %s", TUN)
 	}
 	ifName := string(req.Name[:])
 	if idx := strings.IndexByte(ifName, 0); idx >= 0 {
@@ -54,7 +54,7 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	err = unix.SetNonblock(fd, true)
 	if err != nil {
 		unix.Close(fd)
-		return nil, errors.Wrapf(err, "tuncap: Can't set nonblocking mode on fd %q", TUN)
+		return nil, errors.Wrapf(err, "tuntap: Can't set nonblocking mode on fd %q", TUN)
 	}
 
 	// now that we've done the ioctl and the fd is in nonblocking mode we can create an *os.File to wrap it,
