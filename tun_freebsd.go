@@ -12,7 +12,10 @@ import (
 func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
 	if kind != DevTun {
-		panic(fmt.Sprintf("tuntap: unsupported tuntap interface type %d", int(kind)))
+		if kind == DevTap {
+			return nil, fmt.Errorf("tuntap: tap devices not supported")
+		}
+		return nil, fmt.Errorf("tuntap: unsupported tuntap interface type %d", int(kind))
 	}
 
 	ifName := "/dev/" + ifPattern
@@ -36,10 +39,10 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	}
 
 	// Disable extended modes
-	if err = unix.IoctlSetInt(fd, reqTUNSLMODE, 0); err != nil {
+	if err = unix.IoctlSetPointerInt(fd, reqTUNSLMODE, 0); err != nil {
 		return nil, errors.Wrapf(err, "tuntap: can't clear TUNSLMODE on %s", ifName)
 	}
-	if err = unix.IoctlSetInt(fd, reqTUNSIFHEAD, 0); err != nil {
+	if err = unix.IoctlSetPointerInt(fd, reqTUNSIFHEAD, 0); err != nil {
 		return nil, errors.Wrapf(err, "tuntap: can't clear TUNSIFHEAD on %s", ifName)
 	}
 
