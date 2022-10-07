@@ -11,10 +11,7 @@ import (
 
 func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
-	if kind != DevTun {
-		if kind == DevTap {
-			return nil, fmt.Errorf("tuntap: tap devices not supported")
-		}
+	if kind != DevTun && kind != DevTap {
 		return nil, fmt.Errorf("tuntap: unsupported tuntap interface type %d", int(kind))
 	}
 
@@ -38,12 +35,18 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 		return nil, errors.Wrapf(err, "tuntap: can't open %s", ifName)
 	}
 
-	// Disable extended modes
-	if err = unix.IoctlSetPointerInt(fd, reqTUNSLMODE, 0); err != nil {
-		return nil, errors.Wrapf(err, "tuntap: can't clear TUNSLMODE on %s", ifName)
+	if kind == DevTun {
+		// Disable extended modes
+		if err = unix.IoctlSetPointerInt(fd, reqTUNSLMODE, 0); err != nil {
+			return nil, errors.Wrapf(err, "tuntap: can't clear TUNSLMODE on %s", ifName)
+		}
+		if err = unix.IoctlSetPointerInt(fd, reqTUNSIFHEAD, 0); err != nil {
+			return nil, errors.Wrapf(err, "tuntap: can't clear TUNSIFHEAD on %s", ifName)
+		}
 	}
-	if err = unix.IoctlSetPointerInt(fd, reqTUNSIFHEAD, 0); err != nil {
-		return nil, errors.Wrapf(err, "tuntap: can't clear TUNSIFHEAD on %s", ifName)
+
+	if kind == DevTap {
+		// TODO
 	}
 
 	file := os.NewFile(uintptr(fd), ifName)
