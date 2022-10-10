@@ -1,13 +1,24 @@
+//-----------------------------------------------------------------------------
+/*
+
+Copyright Juniper Networks Inc. 2022-2022. All rights reserved.
+
+*/
+//-----------------------------------------------------------------------------
+
 package tuntap
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
+
+//-----------------------------------------------------------------------------
 
 func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
@@ -52,3 +63,19 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	file := os.NewFile(uintptr(fd), ifName)
 	return &Interface{ifName, file}, nil
 }
+
+//-----------------------------------------------------------------------------
+
+func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
+	return errors.New("TODO")
+}
+
+func (t *Interface) SetMTU(mtu int) error {
+	return errors.New("TODO")
+}
+
+func (t *Interface) Up() error {
+	return errors.New("TODO")
+}
+
+//-----------------------------------------------------------------------------

@@ -1,15 +1,27 @@
+//-----------------------------------------------------------------------------
+/*
+
+Copyright Juniper Networks Inc. 2015-2022. All rights reserved.
+
+*/
+//-----------------------------------------------------------------------------
+
 package tuntap
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"syscall"
 	"unsafe"
 
 	"github.com/pkg/errors"
+	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
 )
+
+//-----------------------------------------------------------------------------
 
 func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	// Note there is a complication because in go, if a device node is opened,
@@ -63,3 +75,46 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
 	return &Interface{ifName, file}, nil
 }
+
+//-----------------------------------------------------------------------------
+
+// AddAddress adds an IP address to the tunnel interface.
+func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
+	iface, err := netlink.LinkByName(t.Name())
+	if err != nil {
+		return err
+	}
+	err = netlink.AddrAdd(iface, &netlink.Addr{IPNet: &net.IPNet{IP: ip, Mask: subnet.Mask}})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// SetMTU sets the tunnel interface MTU size.
+func (t *Interface) SetMTU(mtu int) error {
+	iface, err := netlink.LinkByName(t.Name())
+	if err != nil {
+		return err
+	}
+	err = netlink.LinkSetMTU(iface, mtu)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Up sets the tunnel interface to the UP state.
+func (t *Interface) Up() error {
+	iface, err := netlink.LinkByName(t.Name())
+	if err != nil {
+		return err
+	}
+	err = netlink.LinkSetUp(iface)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+//-----------------------------------------------------------------------------
