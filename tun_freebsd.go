@@ -96,4 +96,9 @@ func (t *Interface) IPv6(ctrl bool) error {
 	return errors.New("TODO")
 }
 
+// GetAddrList returns the IP addresses (as bytes) associated with the interface.
+func (t *Interface) GetAddrList() ([][]byte, error) {
+	return nil, errors.New("TODO")
+}
+
 //-----------------------------------------------------------------------------

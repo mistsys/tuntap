@@ -143,4 +143,26 @@ func (t *Interface) IPv6(ctrl bool) error {
 	return ioutil.WriteFile("/proc/sys/net/ipv6/conf/"+t.Name()+"/disable_ipv6", []byte{k}, 0)
 }
 
+// GetAddrList returns the IP addresses (as bytes) associated with the interface.
+func (t *Interface) GetAddrList() ([][]byte, error) {
+	iface, err := netlink.LinkByName(t.Name())
+	if err != nil {
+		return nil, err
+	}
+	nladdrs, err := netlink.AddrList(iface, netlink.FAMILY_ALL)
+	if err != nil {
+		return nil, err
+	}
+	addrs := [][]byte{}
+	for _, ipn := range nladdrs {
+		ip := ipn.IP
+		if ip.To4().To16().Equal(ip) {
+			// it's an IPv4 address- just use the 4 bytes
+			ip = ip.To4()
+		}
+		addrs = append(addrs, ip)
+	}
+	return addrs, nil
+}
+
 //-----------------------------------------------------------------------------
