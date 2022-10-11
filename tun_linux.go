@@ -10,6 +10,7 @@ package tuntap
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -115,6 +116,31 @@ func (t *Interface) Up() error {
 		return err
 	}
 	return nil
+}
+
+func boolToByte(x bool) byte {
+	if x {
+		return 1
+	}
+	return 0
+}
+
+// IPv6SLAAC enables/disables stateless address auto-configuration (SLAAC) for the interface.
+func (t *Interface) IPv6SLAAC(ctrl bool) error {
+	k := boolToByte(ctrl)
+	return ioutil.WriteFile("/proc/sys/net/ipv6/conf/"+t.Name()+"/autoconf", []byte{k}, 0)
+}
+
+// IPv6Forwarding enables/disables ipv6 forwarding for the interface.
+func (t *Interface) IPv6Forwarding(ctrl bool) error {
+	k := boolToByte(ctrl)
+	return ioutil.WriteFile("/proc/sys/net/ipv6/conf/"+t.Name()+"/forwarding", []byte{k}, 0)
+}
+
+// IPv6 enables/disable ipv6 for the interface.
+func (t *Interface) IPv6(ctrl bool) error {
+	k := boolToByte(!ctrl)
+	return ioutil.WriteFile("/proc/sys/net/ipv6/conf/"+t.Name()+"/disable_ipv6", []byte{k}, 0)
 }
 
 //-----------------------------------------------------------------------------
