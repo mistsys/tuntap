@@ -13,6 +13,8 @@ package tuntap
 import "C"
 
 const flagTruncated = 0
+const ifreqSize = C.sizeof_struct_ifreq
+const ifNameSize = C.IFNAMSIZ
 
 const (
 	// tun

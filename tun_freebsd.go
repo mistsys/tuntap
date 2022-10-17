@@ -9,14 +9,33 @@ Copyright Juniper Networks Inc. 2022-2022. All rights reserved.
 package tuntap
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
 	"strings"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"golang.org/x/sys/unix"
 )
+
+//-----------------------------------------------------------------------------
+
+var nativeEndian binary.ByteOrder
+
+func init() {
+	buf := [2]byte{}
+	*(*uint16)(unsafe.Pointer(&buf[0])) = uint16(0xABCD)
+	switch buf {
+	case [2]byte{0xCD, 0xAB}:
+		nativeEndian = binary.LittleEndian
+	case [2]byte{0xAB, 0xCD}:
+		nativeEndian = binary.BigEndian
+	default:
+		panic("Could not determine native endianness.")
+	}
+}
 
 //-----------------------------------------------------------------------------
 
@@ -66,6 +85,18 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
 //-----------------------------------------------------------------------------
 
+const sizeofInt = 4
+
+func ioctl(fd int, req uint, arg uintptr) error {
+	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(arg))
+	if err != 0 {
+		return fmt.Errorf("syscall returned %d", err)
+	}
+	return nil
+}
+
+//-----------------------------------------------------------------------------
+
 // AddAddress adds an IP address to the tunnel interface.
 func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 	return errors.New("TODO")
@@ -73,7 +104,16 @@ func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 
 // SetMTU sets the tunnel interface MTU size.
 func (t *Interface) SetMTU(mtu int) error {
-	return errors.New("TODO")
+	// build the ifreq structure
+	var ifreq [unix.IFNAMSIZ + sizeofInt]byte
+	copy(ifreq[:unix.IFNAMSIZ], []byte(t.Name()))
+	nativeEndian.PutUint32(ifreq[unix.IFNAMSIZ:], uint32(mtu))
+	// do the ioctl
+	fd := int(t.file.Fd())
+	if err := ioctl(fd, unix.SIOCSIFMTU, uintptr(unsafe.Pointer(&ifreq))); err != nil {
+		return errors.Wrapf(err, "tuntap: can't set MTU of %d on %s", mtu, t.Name())
+	}
+	return nil
 }
 
 // Up sets the tunnel interface to the UP state.
