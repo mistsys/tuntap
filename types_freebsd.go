@@ -9,6 +9,7 @@ package tuntap
 #include <sys/ioctl.h>
 #include <net/if_tun.h>
 #include <net/if_tap.h>
+#include <net/if.h>
 */
 import "C"
 

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"strings"
 	"unsafe"
 
@@ -85,12 +86,10 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
 //-----------------------------------------------------------------------------
 
-const sizeofInt = 4
-
 func ioctl(fd int, req uint, arg uintptr) error {
 	_, _, err := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(arg))
 	if err != 0 {
-		return fmt.Errorf("syscall returned %d", err)
+		return fmt.Errorf("(%d) %s", err, unix.ErrnoName(err))
 	}
 	return nil
 }
@@ -105,20 +104,49 @@ func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 // SetMTU sets the tunnel interface MTU size.
 func (t *Interface) SetMTU(mtu int) error {
 	// build the ifreq structure
-	var ifreq [unix.IFNAMSIZ + sizeofInt]byte
-	copy(ifreq[:unix.IFNAMSIZ], []byte(t.Name()))
-	nativeEndian.PutUint32(ifreq[unix.IFNAMSIZ:], uint32(mtu))
+	var ifreq [ifreqSize]byte
+	ifName := path.Base(t.Name())
+	copy(ifreq[:ifNameSize], []byte(ifName))
+	nativeEndian.PutUint32(ifreq[ifNameSize:], uint32(mtu)) // sizeof(int) == 4
 	// do the ioctl
-	fd := int(t.file.Fd())
-	if err := ioctl(fd, unix.SIOCSIFMTU, uintptr(unsafe.Pointer(&ifreq))); err != nil {
-		return errors.Wrapf(err, "tuntap: can't set MTU of %d on %s", mtu, t.Name())
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		return err
 	}
-	return nil
+	err = ioctl(fd, unix.SIOCSIFMTU, uintptr(unsafe.Pointer(&ifreq)))
+	if err != nil {
+		return err
+	}
+	return unix.Close(fd)
 }
 
 // Up sets the tunnel interface to the UP state.
 func (t *Interface) Up() error {
-	return errors.New("TODO")
+
+	var ifreq [ifreqSize]byte
+	ifName := path.Base(t.Name())
+	copy(ifreq[:ifNameSize], []byte(ifName))
+
+	// get the interface flags
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		return err
+	}
+	err = ioctl(fd, unix.SIOCGIFFLAGS, uintptr(unsafe.Pointer(&ifreq)))
+	if err != nil {
+		return err
+	}
+
+	// set the interface flags
+	flagsLo := nativeEndian.Uint16(ifreq[ifNameSize:])
+	flagsLo |= unix.IFF_UP
+	nativeEndian.PutUint16(ifreq[ifNameSize:], flagsLo)
+	err = ioctl(fd, unix.SIOCSIFFLAGS, uintptr(unsafe.Pointer(&ifreq)))
+	if err != nil {
+		return err
+	}
+
+	return unix.Close(fd)
 }
 
 // IPv6SLAAC enables/disables stateless address auto-configuration (SLAAC) for the interface.

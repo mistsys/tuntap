@@ -4,6 +4,8 @@
 package tuntap
 
 const flagTruncated = 0
+const ifreqSize = 0x20
+const ifNameSize = 0x10
 
 const (
 	reqTUNSDEBUG  = 0x8004745a
