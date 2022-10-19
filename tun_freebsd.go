@@ -94,8 +94,6 @@ func ioctl(fd int, req uint, arg uintptr) error {
 	return nil
 }
 
-//-----------------------------------------------------------------------------
-
 // AddAddress adds an IP address to the tunnel interface.
 func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 	return errors.New("TODO")
@@ -122,11 +120,10 @@ func (t *Interface) SetMTU(mtu int) error {
 
 // Up sets the tunnel interface to the UP state.
 func (t *Interface) Up() error {
-
+	// build the ifreq structure
 	var ifreq [ifreqSize]byte
 	ifName := path.Base(t.Name())
 	copy(ifreq[:ifNameSize], []byte(ifName))
-
 	// get the interface flags
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
@@ -136,7 +133,6 @@ func (t *Interface) Up() error {
 	if err != nil {
 		return err
 	}
-
 	// set the interface flags
 	flagsLo := nativeEndian.Uint16(ifreq[ifNameSize:])
 	flagsLo |= unix.IFF_UP
@@ -145,7 +141,6 @@ func (t *Interface) Up() error {
 	if err != nil {
 		return err
 	}
-
 	return unix.Close(fd)
 }
 
@@ -167,7 +162,7 @@ func (t *Interface) IPv6(ctrl bool) error {
 // GetAddrList returns the IP addresses (as bytes) associated with the interface.
 func (t *Interface) GetAddrList() ([][]byte, error) {
 	// get the net.Interface using the tunnel name
-	itf, err := net.InterfaceByName(t.Name())
+	itf, err := net.InterfaceByName(path.Base(t.Name()))
 	if err != nil {
 		return nil, err
 	}
