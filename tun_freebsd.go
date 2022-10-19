@@ -166,7 +166,30 @@ func (t *Interface) IPv6(ctrl bool) error {
 
 // GetAddrList returns the IP addresses (as bytes) associated with the interface.
 func (t *Interface) GetAddrList() ([][]byte, error) {
-	return nil, errors.New("TODO")
+	// get the net.Interface using the tunnel name
+	itf, err := net.InterfaceByName(t.Name())
+	if err != nil {
+		return nil, err
+	}
+	// get the ip address list for the interface
+	addrList, err := itf.Addrs()
+	if err != nil {
+		return nil, err
+	}
+	// parse the address strings and convert to bytes
+	addrs := [][]byte{}
+	for _, addr := range addrList {
+		ip, _, err := net.ParseCIDR(addr.String())
+		if err != nil {
+			return nil, err
+		}
+		if ip.To4().To16().Equal(ip) {
+			// it's an IPv4 address- just use the 4 bytes
+			ip = ip.To4()
+		}
+		addrs = append(addrs, ip)
+	}
+	return addrs, nil
 }
 
 //-----------------------------------------------------------------------------
