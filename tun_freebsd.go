@@ -68,10 +68,10 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 
 	if kind == DevTun {
 		// Disable extended modes
-		if err = unix.IoctlSetPointerInt(fd, reqTUNSLMODE, 0); err != nil {
+		if err = unix.IoctlSetPointerInt(fd, TUNSLMODE, 0); err != nil {
 			return nil, errors.Wrapf(err, "tuntap: can't clear TUNSLMODE on %s", ifName)
 		}
-		if err = unix.IoctlSetPointerInt(fd, reqTUNSIFHEAD, 0); err != nil {
+		if err = unix.IoctlSetPointerInt(fd, TUNSIFHEAD, 0); err != nil {
 			return nil, errors.Wrapf(err, "tuntap: can't clear TUNSIFHEAD on %s", ifName)
 		}
 	}
@@ -94,9 +94,36 @@ func ioctl(fd int, req uint, arg uintptr) error {
 	return nil
 }
 
+func isIPv4(ip net.IP) bool {
+	return ip.To4().To16().Equal(ip)
+}
+
 // AddAddress adds an IP address to the tunnel interface.
 func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
-	return errors.New("TODO")
+
+	// build the in6_aliasreq structure
+	var ifra [in6SockAddrSize]byte
+
+	ifName := path.Base(t.Name())
+	copy(ifra[:ifNameSize], []byte(ifName))
+
+	if isIPv4(ip) {
+		return errors.New("ipv4 addresses not supported")
+	}
+
+	// do the ioctl
+	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, 0)
+	if err != nil {
+		return err
+	}
+
+	err = ioctl(fd, SIOCAIFADDR_IN6, uintptr(unsafe.Pointer(&ifra)))
+	if err != nil {
+		return err
+	}
+
+	return unix.Close(fd)
+
 }
 
 // SetMTU sets the tunnel interface MTU size.
@@ -178,7 +205,7 @@ func (t *Interface) GetAddrList() ([][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		if ip.To4().To16().Equal(ip) {
+		if isIPv4(ip) {
 			// it's an IPv4 address- just use the 4 bytes
 			ip = ip.To4()
 		}
