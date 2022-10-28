@@ -98,18 +98,61 @@ func isIPv4(ip net.IP) bool {
 	return ip.To4().To16().Equal(ip)
 }
 
+func in6SockAddr(buf []byte, ip net.IP) {
+	if ip == nil {
+		return
+	}
+	// uint8 sin6_len, length of this struct
+	buf[0] = in6SockAddrSize
+	// uint8 sin6_family, AF_INET6
+	buf[1] = unix.AF_INET6
+	// uint16 sin6_port, Transport layer port #
+	nativeEndian.PutUint16(buf[2:], 0)
+	// uint32 sin6_flowinfo, IP6 flow information
+	nativeEndian.PutUint32(buf[4:], 0)
+	// [16]byte sin6_addr, IP6 address
+	copy(buf[8:], ip)
+	// uint32 sin6_scope_id, scope zone index
+	nativeEndian.PutUint32(buf[24:], 0)
+}
+
 // AddAddress adds an IP address to the tunnel interface.
 func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
+
+	if isIPv4(ip) {
+		return errors.New("ipv4 addresses not supported")
+	}
 
 	// build the in6_aliasreq structure
 	var ifra [in6SockAddrSize]byte
 
 	ifName := path.Base(t.Name())
 	copy(ifra[:ifNameSize], []byte(ifName))
+	ofs := ifNameSize
 
-	if isIPv4(ip) {
-		return errors.New("ipv4 addresses not supported")
-	}
+	// ifra_addr
+	in6SockAddr(ifra[ofs:], ip)
+	ofs += in6SockAddrSize
+
+	// ifra_dstaddr
+	in6SockAddr(ifra[ofs:], nil)
+	ofs += in6SockAddrSize
+
+	// ifra_prefixmask
+	in6SockAddr(ifra[ofs:], net.IP(subnet.Mask))
+	ofs += in6SockAddrSize
+
+	// ifra_flags
+	nativeEndian.PutUint32(ifra[ofs:], 0)
+	ofs += sizeofInt
+
+	// ifra_lifetime
+	// TODO
+	ofs += in6AddrLifetime
+
+	// ifra_vhid
+	nativeEndian.PutUint32(ifra[ofs:], 0)
+	ofs += sizeofInt
 
 	// do the ioctl
 	fd, err := unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, 0)

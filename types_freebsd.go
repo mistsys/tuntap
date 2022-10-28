@@ -20,6 +20,8 @@ const ifreqSize = C.sizeof_struct_ifreq
 const ifNameSize = C.IFNAMSIZ
 const in6AliasReqSize = C.sizeof_struct_in6_aliasreq
 const in6SockAddrSize = C.sizeof_struct_sockaddr_in6
+const in6AddrLifetime = C.sizeof_struct_in6_addrlifetime
+const sizeofInt = C.sizeof_int
 
 const (
 	SIOCDIFADDR_IN6 = C.SIOCDIFADDR_IN6
