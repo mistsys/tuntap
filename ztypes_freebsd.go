@@ -4,14 +4,19 @@
 package tuntap
 
 const flagTruncated = 0
-const ifreqSize = 0x20
-const ifNameSize = 0x10
-const in6AliasReqSize = 0x88
-const in6SockAddrSize = 0x1c
+
+const sizeofInt = 0x4
+const sizeofTime = 0x8
+const sizeofIfreq = 0x20
+const sizeofIn6AliasReq = 0x88
+const sizeofIn6SockAddr = 0x1c
+const sizeofIn6AddrLifetime = 0x18
 
 const (
-	SIOCDIFADDR_IN6 = 0x81206919
-	SIOCAIFADDR_IN6 = 0x8088691b
+	IFNAMSIZ              = 0x10
+	ND6_INFINITE_LIFETIME = 0xffffffff
+	SIOCDIFADDR_IN6       = 0x81206919
+	SIOCAIFADDR_IN6       = 0x8088691b
 
 	TUNSDEBUG  = 0x8004745a
 	TUNGDEBUG  = 0x40047459

@@ -103,7 +103,7 @@ func in6SockAddr(buf []byte, ip net.IP) {
 		return
 	}
 	// uint8 sin6_len, length of this struct
-	buf[0] = in6SockAddrSize
+	buf[0] = sizeofIn6SockAddr
 	// uint8 sin6_family, AF_INET6
 	buf[1] = unix.AF_INET6
 	// uint16 sin6_port, Transport layer port #
@@ -116,6 +116,20 @@ func in6SockAddr(buf []byte, ip net.IP) {
 	nativeEndian.PutUint32(buf[24:], 0)
 }
 
+func in6AddrLifetime(buf []byte) {
+	ofs := 0
+	// time_t ia6t_expire, valid lifetime expiration time
+	ofs += sizeofTime
+	// time_t ia6t_preferred, preferred lifetime expiration time
+	ofs += sizeofTime
+	// u_int32_t ia6t_vltime, valid lifetime
+	nativeEndian.PutUint32(buf[ofs:], ND6_INFINITE_LIFETIME)
+	ofs += 4
+	// u_int32_t ia6t_pltime, prefix lifetime
+	nativeEndian.PutUint32(buf[ofs:], ND6_INFINITE_LIFETIME)
+	ofs += 4
+}
+
 // AddAddress adds an IP address to the tunnel interface.
 func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 
@@ -124,32 +138,26 @@ func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 	}
 
 	// build the in6_aliasreq structure
-	var ifra [in6SockAddrSize]byte
+	var ifra [sizeofIn6AliasReq]byte
 
 	ifName := path.Base(t.Name())
-	copy(ifra[:ifNameSize], []byte(ifName))
-	ofs := ifNameSize
-
+	copy(ifra[:IFNAMSIZ], []byte(ifName))
+	ofs := IFNAMSIZ
 	// ifra_addr
 	in6SockAddr(ifra[ofs:], ip)
-	ofs += in6SockAddrSize
-
+	ofs += sizeofIn6SockAddr
 	// ifra_dstaddr
 	in6SockAddr(ifra[ofs:], nil)
-	ofs += in6SockAddrSize
-
+	ofs += sizeofIn6SockAddr
 	// ifra_prefixmask
 	in6SockAddr(ifra[ofs:], net.IP(subnet.Mask))
-	ofs += in6SockAddrSize
-
+	ofs += sizeofIn6SockAddr
 	// ifra_flags
 	nativeEndian.PutUint32(ifra[ofs:], 0)
 	ofs += sizeofInt
-
 	// ifra_lifetime
-	// TODO
-	ofs += in6AddrLifetime
-
+	in6AddrLifetime(ifra[ofs:])
+	ofs += sizeofIn6AddrLifetime
 	// ifra_vhid
 	nativeEndian.PutUint32(ifra[ofs:], 0)
 	ofs += sizeofInt
@@ -172,10 +180,10 @@ func (t *Interface) AddAddress(ip net.IP, subnet *net.IPNet) error {
 // SetMTU sets the tunnel interface MTU size.
 func (t *Interface) SetMTU(mtu int) error {
 	// build the ifreq structure
-	var ifreq [ifreqSize]byte
+	var ifreq [sizeofIfreq]byte
 	ifName := path.Base(t.Name())
-	copy(ifreq[:ifNameSize], []byte(ifName))
-	nativeEndian.PutUint32(ifreq[ifNameSize:], uint32(mtu)) // sizeof(int) == 4
+	copy(ifreq[:IFNAMSIZ], []byte(ifName))
+	nativeEndian.PutUint32(ifreq[IFNAMSIZ:], uint32(mtu)) // sizeof(int) == 4
 	// do the ioctl
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
@@ -191,9 +199,9 @@ func (t *Interface) SetMTU(mtu int) error {
 // Up sets the tunnel interface to the UP state.
 func (t *Interface) Up() error {
 	// build the ifreq structure
-	var ifreq [ifreqSize]byte
+	var ifreq [sizeofIfreq]byte
 	ifName := path.Base(t.Name())
-	copy(ifreq[:ifNameSize], []byte(ifName))
+	copy(ifreq[:IFNAMSIZ], []byte(ifName))
 	// get the interface flags
 	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0)
 	if err != nil {
@@ -204,9 +212,9 @@ func (t *Interface) Up() error {
 		return err
 	}
 	// set the interface flags
-	flagsLo := nativeEndian.Uint16(ifreq[ifNameSize:])
+	flagsLo := nativeEndian.Uint16(ifreq[IFNAMSIZ:])
 	flagsLo |= unix.IFF_UP
-	nativeEndian.PutUint16(ifreq[ifNameSize:], flagsLo)
+	nativeEndian.PutUint16(ifreq[IFNAMSIZ:], flagsLo)
 	err = ioctl(fd, unix.SIOCSIFFLAGS, uintptr(unsafe.Pointer(&ifreq)))
 	if err != nil {
 		return err

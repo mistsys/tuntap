@@ -12,20 +12,24 @@ package tuntap
 #include <net/if.h>
 #include <netinet/in.h>
 #include <netinet6/in6_var.h>
+#include <netinet6/nd6.h>
 */
 import "C"
 
 const flagTruncated = 0
-const ifreqSize = C.sizeof_struct_ifreq
-const ifNameSize = C.IFNAMSIZ
-const in6AliasReqSize = C.sizeof_struct_in6_aliasreq
-const in6SockAddrSize = C.sizeof_struct_sockaddr_in6
-const in6AddrLifetime = C.sizeof_struct_in6_addrlifetime
+
 const sizeofInt = C.sizeof_int
+const sizeofTime = C.sizeof_time_t
+const sizeofIfreq = C.sizeof_struct_ifreq
+const sizeofIn6AliasReq = C.sizeof_struct_in6_aliasreq
+const sizeofIn6SockAddr = C.sizeof_struct_sockaddr_in6
+const sizeofIn6AddrLifetime = C.sizeof_struct_in6_addrlifetime
 
 const (
-	SIOCDIFADDR_IN6 = C.SIOCDIFADDR_IN6
-	SIOCAIFADDR_IN6 = C.SIOCAIFADDR_IN6
+	IFNAMSIZ              = C.IFNAMSIZ
+	ND6_INFINITE_LIFETIME = C.ND6_INFINITE_LIFETIME
+	SIOCDIFADDR_IN6       = C.SIOCDIFADDR_IN6
+	SIOCAIFADDR_IN6       = C.SIOCAIFADDR_IN6
 
 	// tun
 	TUNSDEBUG  = C.TUNSDEBUG
