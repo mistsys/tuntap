@@ -9,6 +9,7 @@ package tuntap
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,6 +20,9 @@ import (
 )
 
 type DevKind int
+
+var ErrShortRead = errors.New("truncated /dev/tun read")
+var ErrJumboPacket = errors.New("jumbo packet too large for /dev/tun")
 
 const (
 	// Receive/send layer routable 3 packets (IP, IPv6...). Notably,
@@ -73,6 +77,9 @@ func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
 	if err != nil {
 		return Packet{}, err
 	}
+	if n < 4 {
+		return Packet{}, ErrShortRead
+	}
 
 	pkt := Packet{Body: buffer[4:n]}
 	pkt.Protocol = binary.BigEndian.Uint16(buffer[2:4])
@@ -93,6 +100,9 @@ func (t *Interface) WritePacket(pkt Packet) error {
 	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
 	copy(buf[4:], pkt.Body)
 	n := 4 + len(pkt.Body)
+	if n > len(buf) {
+		return ErrJumboPacket
+	}
 	a, err := t.file.Write(buf[:n])
 	buffers.Put(buf)
 	if err != nil {
