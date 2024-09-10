@@ -9,6 +9,7 @@ package tuntap
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -19,6 +20,9 @@ import (
 )
 
 type DevKind int
+
+var ErrShortRead = errors.New("truncated /dev/tun read")
+var ErrJumboPacket = errors.New("jumbo packet too large for /dev/tun")
 
 const (
 	// Receive/send layer routable 3 packets (IP, IPv6...). Notably,
@@ -73,6 +77,9 @@ func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
 	if err != nil {
 		return Packet{}, err
 	}
+	if n < 4 {
+		return Packet{}, ErrShortRead
+	}
 
 	pkt := Packet{Body: buffer[4:n]}
 	pkt.Protocol = binary.BigEndian.Uint16(buffer[2:4])
@@ -93,6 +100,9 @@ func (t *Interface) WritePacket(pkt Packet) error {
 	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
 	copy(buf[4:], pkt.Body)
 	n := 4 + len(pkt.Body)
+	if n > len(buf) {
+		return ErrJumboPacket
+	}
 	a, err := t.file.Write(buf[:n])
 	buffers.Put(buf)
 	if err != nil {
@@ -128,9 +138,13 @@ func Open(ifPattern string, kind DevKind) (*Interface, error) {
 func (p *Packet) DIP() net.IP {
 	switch p.Protocol {
 	case ETH_P_IP:
-		return net.IP(p.Body[16:20])
+		if len(p.Body) >= 20 {
+			return net.IP(p.Body[16:20])
+		}
 	case ETH_P_IPV6:
-		return net.IP(p.Body[24:40])
+		if len(p.Body) >= 40 {
+			return net.IP(p.Body[24:40])
+		}
 	}
 	return net.IP{}
 }
@@ -139,9 +153,13 @@ func (p *Packet) DIP() net.IP {
 func (p *Packet) SIP() net.IP {
 	switch p.Protocol {
 	case ETH_P_IP:
-		return net.IP(p.Body[12:16])
+		if len(p.Body) >= 20 { // we'll insist the full IPv4 header is present to extract any field
+			return net.IP(p.Body[12:16])
+		}
 	case ETH_P_IPV6:
-		return net.IP(p.Body[8:24])
+		if len(p.Body) >= 40 {
+			return net.IP(p.Body[8:24])
+		}
 	}
 	return net.IP{}
 }
@@ -150,48 +168,71 @@ func (p *Packet) SIP() net.IP {
 func (p *Packet) DSCP() int {
 	switch p.Protocol {
 	case ETH_P_IP:
-		return int(p.Body[1] >> 2)
+		if len(p.Body) >= 20 { // we'll insist the full IPv4 header is present to extract any field
+			return int(p.Body[1] >> 2)
+		}
 	case ETH_P_IPV6:
-		return int((p.Body[0]&0x0f)<<2 | (p.Body[1]&0xf0)>>6)
+		if len(p.Body) >= 40 {
+			return int((p.Body[0]&0x0f)<<2 | (p.Body[1]&0xf0)>>6)
+		}
 	}
 	return 0
 }
 
 // return the IP protocol, the offset to the IP datagram payload, and true if the payload is from a non-first fragment
-// returns 0,0,false if parsing fails or the IPv6 header 59 (no-next-header) is found
+// returns 0,0,false if parsing fails or 0,len(Body),false if the IPv6 header 59 (no-next-header) is found
 func (p *Packet) IPProto() (uint8, int, bool) {
-	fragment := false
 	switch p.Protocol {
 	case ETH_P_IP:
-		fragment = (p.Body[6]&0x1f)|p.Body[7] != 0
-		return p.Body[9], int(p.Body[0]&0xf) << 2, fragment
+		if len(p.Body) >= 20 { // we'll insist the full IPv4 header is present to extract any field
+			fragment := (p.Body[6]&0x1f)|p.Body[7] != 0
+			return p.Body[9], int(p.Body[0]&0xf) << 2, fragment
+		}
 	case ETH_P_IPV6:
-		// finding the IP protocol in the case of IPv6 is slightly messy. we have to scan down the IPv6 header chain and find the last one
-		next := p.Body[6]
-		at := 40
-		for true {
-			if at+4 > len(p.Body) {
-				// off the end of the body. there must have been a garbage value somewhere
-				return 0, 0, false
-			}
-			switch next {
-			case 0, // hop-by-hop
-				43, // routing extension
-				60: // destination options extension
-				// skip over this header and continue to the next one
-				next = p.Body[at]
-				at += 8 + int(p.Body[at+1])*8
-			case 44: // fragment extension
-				next = p.Body[at]
-				at += 8
-				fragment = p.Body[at+2]|(p.Body[at+3]&0xf8) != 0
-			case 51: // AH header (it is likely that the next proto is ESP, but just in case it isn't we might as well decode it)
-				next = p.Body[at]
-				at += 8 + int(p.Body[at+1])*4 // note unlike most IPv6 headers the length of AH is in 4-byte units
-			case 59: // no next header
-				return 0, len(p.Body), fragment
-			default:
-				return next, at, fragment
+		if len(p.Body) >= 40 {
+			// finding the IP protocol in the case of IPv6 is slightly messy. we have to scan down the IPv6 header chain and find the last one
+			next := p.Body[6]
+			at := 40
+			for {
+				switch next {
+				case 0, // hop-by-hop
+					43, // routing extension
+					60: // destination options extension
+					// skip over this header and continue to the next one
+					if at+4 > len(p.Body) {
+						// off the end of the body. there must have been a garbage value somewhere
+						return 0, 0, false
+					}
+					next = p.Body[at]
+					at += 8 + int(p.Body[at+1])*8
+				case 44: // fragment extension
+					if at+8 > len(p.Body) {
+						return 0, 0, false
+					}
+					next = p.Body[at]
+					fragment := p.Body[at+2]|(p.Body[at+3]&0xf8) != 0
+					at += 8
+					if fragment {
+						// this isn't the 1st fragment; are no further headers, only datagram body
+						return next, at, true
+					}
+				case 51: // AH header
+					if at+8 > len(p.Body) {
+						return 0, 0, false
+					}
+					next = p.Body[at]
+					at += 8 + int(p.Body[at+1])*4 // note unlike most IPv6 headers the length of AH is in 4-byte units
+				case 59: // no next header
+					if at > len(p.Body) {
+						return 0, 0, false
+					}
+					return 0, len(p.Body), false
+				default:
+					if at > len(p.Body) {
+						return 0, 0, false
+					}
+					return next, at, false
+				}
 			}
 		}
 	}
