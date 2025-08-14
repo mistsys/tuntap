@@ -38,11 +38,6 @@ func main() {
 		if err != nil {
 			fmt.Println("Read error:", err)
 		} else {
-			if pkt.Truncated {
-				fmt.Printf("!")
-			} else {
-				fmt.Printf(" ")
-			}
 			fmt.Printf("%x %x\n", pkt.Protocol, pkt.Body)
 		}
 	}

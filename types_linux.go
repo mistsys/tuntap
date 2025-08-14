@@ -12,10 +12,6 @@ package tuntap
 */
 import "C"
 
-const (
-	flagTruncated = C.TUN_PKT_STRIP
-)
-
 type ifReq struct {
 	Name  [C.IFNAMSIZ]byte
 	Flags uint16

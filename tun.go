@@ -15,14 +15,14 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"sync"
-	"unsafe"
 )
 
 type DevKind int
 
 var ErrShortRead = errors.New("truncated /dev/tun read")
 var ErrJumboPacket = errors.New("jumbo packet too large for /dev/tun")
+var ErrNotIPPacket = errors.New("packet is not IPv4 or IPv6")
+var ErrTruncatedPacket = errors.New("IP packet is truncated") // note that when ErrTruncatedPacket is returned, the truncated packet is also returned for the caller to use for inspection and/or logging, or to ignore
 
 const (
 	// Receive/send layer routable 3 packets (IP, IPv6...). Notably,
@@ -48,8 +48,6 @@ type Packet struct {
 	// The Ethernet type of the packet. Commonly seen values are
 	// 0x8000 for IPv4 and 0x86dd for IPv6.
 	Protocol uint16
-	// True if the packet was too large to be read completely.
-	Truncated bool
 }
 
 type Interface struct {
@@ -77,34 +75,61 @@ func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
 	if err != nil {
 		return Packet{}, err
 	}
-	if n < 4 {
+	pkt := Packet{Body: buffer[:n]}
+	if len(pkt.Body) == 0 {
+		// zero-length packets are an error
 		return Packet{}, ErrShortRead
 	}
+	// Determine IP version from the first nibble of the packet
+	version := pkt.Body[0] >> 4
+	switch version {
+	case 4:
+		pkt.Protocol = ETH_P_IP
+		if len(pkt.Body) < 20 {
+			// the complete IPv4 header is missing
+			return pkt, ErrTruncatedPacket
+		}
 
-	pkt := Packet{Body: buffer[4:n]}
-	pkt.Protocol = binary.BigEndian.Uint16(buffer[2:4])
-	flags := *(*uint16)(unsafe.Pointer(&buffer[0]))
-	pkt.Truncated = (flags&flagTruncated != 0)
+		total_len := int(binary.BigEndian.Uint16(pkt.Body[2:4]))
+		if len(pkt.Body) < total_len {
+			// the complete IPv4 packet is missing
+			return pkt, ErrTruncatedPacket
+		}
+		if len(pkt.Body) > total_len {
+			// truncate the body at the end of the IP data
+			pkt.Body = pkt.Body[:total_len]
+		}
+
+	case 6:
+		pkt.Protocol = ETH_P_IPV6
+		if len(pkt.Body) < 40 {
+			// the complete IPv6 header is missing
+			return pkt, ErrTruncatedPacket
+		}
+		total_len := 40 + int(binary.BigEndian.Uint16(pkt.Body[4:6]))
+		if len(pkt.Body) < total_len {
+			// the complete IPv6 packet is missing
+			return pkt, ErrTruncatedPacket
+		}
+		if len(pkt.Body) > total_len {
+			// truncate the body at the end of the IP data
+			pkt.Body = pkt.Body[:total_len]
+		}
+
+	default:
+		// non-IP packets are an error
+		return Packet{}, ErrNotIPPacket
+	}
 	return pkt, nil
 }
 
-// free 1600 byte buffers
-var buffers = sync.Pool{New: func() interface{} { return new([1600]byte) }}
-
 // Send a single packet to the kernel.
 func (t *Interface) WritePacket(pkt Packet) error {
-	// If only we had writev(), I could do zero-copy here...
-	// At least we will manage the buffer so we don't cause the GC extra work
-	buf := buffers.Get().(*[1600]byte)
-
-	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
-	copy(buf[4:], pkt.Body)
-	n := 4 + len(pkt.Body)
-	if n > len(buf) {
+	n := len(pkt.Body)
+	if n > 1600 { // don't let the caller pass in crazy big stuff (and really, 1500 is the practical limit)
 		return ErrJumboPacket
 	}
-	a, err := t.file.Write(buf[:n])
-	buffers.Put(buf)
+	a, err := t.file.Write(pkt.Body)
 	if err != nil {
 		return err
 	}
