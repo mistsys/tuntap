@@ -8,7 +8,6 @@
 package tuntap
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +15,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"unsafe"
 )
 
 type DevKind int
@@ -48,8 +46,6 @@ type Packet struct {
 	// The Ethernet type of the packet. Commonly seen values are
 	// 0x8000 for IPv4 and 0x86dd for IPv6.
 	Protocol uint16
-	// True if the packet was too large to be read completely.
-	Truncated bool
 }
 
 type Interface struct {
@@ -77,14 +73,17 @@ func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
 	if err != nil {
 		return Packet{}, err
 	}
-	if n < 4 {
-		return Packet{}, ErrShortRead
+	pkt := Packet{Body: buffer[:n]}
+	// Determine IP version from the first nibble of the packet
+	if len(pkt.Body) > 0 {
+		version := pkt.Body[0] >> 4
+		switch version {
+		case 4:
+			pkt.Protocol = ETH_P_IP
+		case 6:
+			pkt.Protocol = ETH_P_IPV6
+		}
 	}
-
-	pkt := Packet{Body: buffer[4:n]}
-	pkt.Protocol = binary.BigEndian.Uint16(buffer[2:4])
-	flags := *(*uint16)(unsafe.Pointer(&buffer[0]))
-	pkt.Truncated = (flags&flagTruncated != 0)
 	return pkt, nil
 }
 
@@ -97,9 +96,8 @@ func (t *Interface) WritePacket(pkt Packet) error {
 	// At least we will manage the buffer so we don't cause the GC extra work
 	buf := buffers.Get().(*[1600]byte)
 
-	binary.BigEndian.PutUint16(buf[2:4], pkt.Protocol)
-	copy(buf[4:], pkt.Body)
-	n := 4 + len(pkt.Body)
+	copy(buf[:], pkt.Body)
+	n := len(pkt.Body)
 	if n > len(buf) {
 		return ErrJumboPacket
 	}

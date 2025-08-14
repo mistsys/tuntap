@@ -48,7 +48,7 @@ func createInterface(ifPattern string, kind DevKind) (*Interface, error) {
 	copy(req.Name[:15], ifPattern)
 	switch kind {
 	case DevTun:
-		req.Flags = unix.IFF_TUN
+		req.Flags = unix.IFF_TUN | unix.IFF_NO_PI
 	case DevTap:
 		req.Flags = unix.IFF_TAP
 	default:
