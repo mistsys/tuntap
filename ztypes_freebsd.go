@@ -3,8 +3,6 @@
 
 package tuntap
 
-const flagTruncated = 0
-
 const sizeofInt = 0x4
 const sizeofTime = 0x8
 const sizeofIfreq = 0x20

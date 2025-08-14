@@ -16,8 +16,6 @@ package tuntap
 */
 import "C"
 
-const flagTruncated = 0
-
 const sizeofInt = C.sizeof_int
 const sizeofTime = C.sizeof_time_t
 const sizeofIfreq = C.sizeof_struct_ifreq
