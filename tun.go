@@ -8,6 +8,7 @@
 package tuntap
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,8 @@ type DevKind int
 
 var ErrShortRead = errors.New("truncated /dev/tun read")
 var ErrJumboPacket = errors.New("jumbo packet too large for /dev/tun")
+var ErrNotIPPacket = errors.New("packet is not IPv4 or IPv6")
+var ErrTruncatedPacket = errors.New("IP packet is truncated") // note that when ErrTruncatedPacket is returned, the truncated packet is also returned for the caller to use for inspection and/or logging, or to ignore
 
 const (
 	// Receive/send layer routable 3 packets (IP, IPv6...). Notably,
@@ -80,9 +83,44 @@ func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
 		switch version {
 		case 4:
 			pkt.Protocol = ETH_P_IP
+			if len(pkt.Body) < 20 {
+				// the complete IPv4 header is missing
+				return pkt, ErrTruncatedPacket
+			}
+
+			total_len := int(binary.BigEndian.Uint16(pkt.Body[2:4]))
+			if len(pkt.Body) < total_len {
+				// the complete IPv4 packet is missing
+				return pkt, ErrTruncatedPacket
+			}
+			if len(pkt.Body) > total_len {
+				// truncate the body at the end of the IP data
+				pkt.Body = pkt.Body[:total_len]
+			}
+
 		case 6:
 			pkt.Protocol = ETH_P_IPV6
+			if len(pkt.Body) < 40 {
+				// the complete IPv6 header is missing
+				return pkt, ErrTruncatedPacket
+			}
+			total_len := 40 + int(binary.BigEndian.Uint16(pkt.Body[4:6]))
+			if len(pkt.Body) < total_len {
+				// the complete IPv6 packet is missing
+				return pkt, ErrTruncatedPacket
+			}
+			if len(pkt.Body) > total_len {
+				// truncate the body at the end of the IP data
+				pkt.Body = pkt.Body[:total_len]
+			}
+
+		default:
+			// non-IP packets are an error
+			return Packet{}, ErrNotIPPacket
 		}
+	} else {
+		// zero-length packets are an error
+		return Packet{}, ErrShortRead
 	}
 	return pkt, nil
 }
