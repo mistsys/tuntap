@@ -15,7 +15,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"sync"
 )
 
 type DevKind int
@@ -119,28 +118,19 @@ func (t *Interface) ReadPacket(buffer []byte) (Packet, error) {
 			return Packet{}, ErrNotIPPacket
 		}
 	} else {
-		// zero-length packets are an error
+		// zero-length packets are
 		return Packet{}, ErrShortRead
 	}
 	return pkt, nil
 }
 
-// free 1600 byte buffers
-var buffers = sync.Pool{New: func() interface{} { return new([1600]byte) }}
-
 // Send a single packet to the kernel.
 func (t *Interface) WritePacket(pkt Packet) error {
-	// If only we had writev(), I could do zero-copy here...
-	// At least we will manage the buffer so we don't cause the GC extra work
-	buf := buffers.Get().(*[1600]byte)
-
-	copy(buf[:], pkt.Body)
 	n := len(pkt.Body)
-	if n > len(buf) {
+	if n > 1600 { // don't let the caller pass in crazy big stuff (and really, 1500 is the practical limit)
 		return ErrJumboPacket
 	}
-	a, err := t.file.Write(buf[:n])
-	buffers.Put(buf)
+	a, err := t.file.Write(pkt.Body)
 	if err != nil {
 		return err
 	}
