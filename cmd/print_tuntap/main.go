@@ -38,7 +38,7 @@ func main() {
 		if err != nil {
 			fmt.Println("Read error:", err)
 		} else {
-			fmt.Printf("%x\n", pkt.Body)
+			fmt.Printf("%x %x\n", pkt.Protocol, pkt.Body)
 		}
 	}
 }
